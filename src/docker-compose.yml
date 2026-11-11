@@ -1,0 +1,86 @@
+# ===========================================================================
+# RomM for TerraMaster TOS 7 (multi-container Docker application)
+# ===========================================================================
+# App image  : rommapp/romm:4.8.1 (Docker Hub)
+# Database   : mariadb:11.8.2 (internal only)
+#
+# RomM bundles its own Valkey (Redis) inside the app container. Only the app
+# publishes a host port. The database password and the RomM auth secret are
+# generated on first start and stored in the shared secret volume, so no
+# credential is hard-coded in this file. Every container runs as uid 1000.
+#
+# NOTE for maintainers: never place a comment line directly in front of a
+# "- value" sequence item (ports, volumes, ...): the official installer
+# parses the compose file line by line and a comment inside a sequence makes
+# it skip the ownership sync of the mounted directories.
+
+services:
+  rommdocker:
+    image: rommapp/romm:4.8.1
+    container_name: rommdocker
+    restart: unless-stopped
+    user: "1000:1000"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        @@ENTRYPOINT_SH@@
+    depends_on:
+      rommdocker-db:
+        condition: service_healthy
+    ports:
+      - "8099:8080"
+    environment:
+      TZ: "Asia/Shanghai"
+      DB_HOST: "rommdocker-db"
+      DB_USER: "romm"
+      DB_NAME: "romm"
+    volumes:
+      - /Volume1/DockerAppData/rommdocker/library:/romm/library
+      - /Volume1/DockerAppData/rommdocker/resources:/romm/resources
+      - /Volume1/DockerAppData/rommdocker/assets:/romm/assets
+      - /Volume1/DockerAppData/rommdocker/config:/romm/config
+      - /Volume1/DockerAppData/rommdocker/redis:/redis-data
+      - /Volume1/DockerAppData/rommdocker/creds:/run/creds
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  rommdocker-db:
+    image: mariadb:11.8.2
+    container_name: rommdocker-db
+    restart: unless-stopped
+    user: "1000:1000"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -u
+        set -e
+        F=/run/creds/db_password
+        mkdir -p /run/creds
+        if [ ! -s "$$F" ]; then head -c 24 /dev/urandom | base64 | tr -d '\n' > "$$F"; fi
+        exec /usr/local/bin/docker-entrypoint.sh mariadbd
+    environment:
+      TZ: "Asia/Shanghai"
+      MARIADB_DATABASE: "romm"
+      MARIADB_USER: "romm"
+      MARIADB_PASSWORD_FILE: "/run/creds/db_password"
+      MARIADB_ROOT_PASSWORD_FILE: "/run/creds/db_password"
+    volumes:
+      - /Volume1/DockerAppData/rommdocker/db:/var/lib/mysql
+      - /Volume1/DockerAppData/rommdocker/creds:/run/creds
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h127.0.0.1 -uromm >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+# TOS App Center web metadata (must be the last block of the file):
+# web.port is the published host port above, protocol is http.
+x-app-meta:
+  web:
+    port: 8099
+    protocol: http
