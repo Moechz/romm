@@ -1,7 +1,7 @@
 {
   "app_id": "rommdocker",
   "title": "RomM",
-  "image": "rommapp/romm:4.8.1",
+  "image": "rommapp/romm:5.4.1",
   "repo_name": "romm",
   "mode": "wrapper",
   "container_port": 8080,
@@ -41,69 +41,31 @@
   "env": {
     "TZ": "Asia/Shanghai",
     "DB_HOST": "rommdocker-db",
-    "DB_USER": "root",
+    "DB_USER": "romm",
     "DB_NAME": "romm"
   },
   "auth": "rommapp",
   "upstream_url": "https://github.com/rommapp/romm",
-  "upstream_license": "AGPL-3.0",
-  "descript": "RomM is a self-hosted ROM manager: it scans your game library, fetches metadata and covers, and lets you browse and play in the browser. This package runs the official Docker Hub image with its own MariaDB database as non-root containers; the library and database stay in the application data folder.",
-  "release_note": "1. First release.",
-  "important": "Put your ROM files into /Volume1/DockerAppData/rommdocker/library and scan them from the web UI. The stack contains two containers (app, MariaDB); the database password and RomM auth secret are generated on first start. Data lives under DockerAppData/rommdocker/ and survives restarts and updates. Needs DockerEngine; configure a registry mirror if Docker Hub is unreachable. Back up the data folder before uninstalling with data removal. Plain HTTP on the LAN.",
-  "probe": {
-    "user_in_image": "nobody",
-    "entrypoint": null,
-    "cmd": [
-      "sh",
-      "start.sh",
-      "prd"
-    ],
-    "exposed_ports": [
-      8080
-    ],
-    "declared_volumes": [],
-    "image_healthcheck": [
-      "CMD-SHELL",
-      "python healthcheck.py"
-    ],
-    "digest": "daya0576/beaverhabits@sha256:6cd7e464207369785c88cfd59f99c6cc44ec57f3a8d90c3439908da42271d69f",
-    "architecture": "x86_64",
-    "platforms": [],
-    "http_client_in_image": "",
-    "trial_run": {
-      "ok": false,
-      "http_code": "",
-      "state": "exited",
-      "paths": [],
-      "host_port": 18000,
-      "log_tail": "21, in connect\n    await_only(connection),\n    ~~~~~~~~~~^^^^^^^^^^^^\n  File \"/opt/pysetup/.venv/lib/python3.14/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^\n  File \"/opt/pysetup/.venv/lib/python3.14/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File \"/opt/pysetup/.venv/lib/python3.14/site-packages/aiosqlite/core.py\", line 168, in _connect\n    self._connection = await future\n                       ^^^^^^^^^^^^\n  File \"/opt/pysetup/.venv/lib/python3.14/site-packages/aiosqlite/core.py\", line 63, in _connection_worker_thread\n    result = function()\n  File \"/opt/pysetup/.venv/lib/python3.14/site-packages/aiosqlite/core.py\", line 466, in connector\n    return sqlite3.connect(loc, **kwargs)\n           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^\nsqlalchemy.exc.OperationalError: (sqlite3.OperationalError) unable to open database file\n(Background on this error at: https://sqlalche.me/e/20/e3q8)\n\n[2026-11-10 04:59:36 +0000] [11] [ERROR] Application startup failed. Exiting.\n[2026-11-10 04:59:36 +0000] [11] [INFO] Worker exiting (pid: 11)\n[2026-11-10 04:59:36 +0000] [9] [ERROR] Worker (pid:11) exited with code 3.\n[2026-11-10 04:59:36 +0000] [9] [ERROR] Shutting down: Master\n[2026-11-10 04:59:36 +0000] [9] [ERROR] Reason: Worker failed to boot.",
-      "files_in_mounts": ""
-    },
-    "docker_hub": {},
-    "github": {
-      "owner": "daya0576",
-      "repo": "beaverhabits",
-      "description": "A self-hosted habit tracking app without \"Goals\"",
-      "license": "BSD-3-Clause",
-      "homepage": "https://beaverhabits.com/demo"
-    }
-  },
+  "upstream_license": "AGPL-3.0-only",
+  "descript": "RomM is a self-hosted ROM manager and browser emulator front end: scan a ROM library, match titles, covers and screenshots from metadata providers you configure (IGDB, ScreenScraper, MobyGames, SteamGridDB, RetroAchievements), sync saves and save states with your devices, and play supported systems in the browser with EmulatorJS. This package runs the official multi-arch Docker Hub image (amd64 + arm64) with its own MariaDB database; both containers run as an unprivileged user.",
+  "release_note": "Rectified per review comments (C10 C3 C4 C5 C6 C7 C8 C9 T1 S11): added a complete privacy policy (retention, user rights, security measures, third-party sharing, deletion channel), NOTICE and a full README; disclosed every third-party endpoint with the data sent and its region (IGDB, MobyGames, ScreenScraper, SteamGridDB, RetroAchievements, Hasheous, GitHub update check, Docker Hub, EmulatorJS CDN, UPC lookup, optional SMTP/OIDC); rewrote the 23-language descriptions so zh-cn/zh-hk no longer describe another application; removed leftover probe metadata copied from another application; hardened the entrypoint (waits for the database credential, 0600 secrets); upgraded upstream 4.8.1 -> 5.4.1 (CA and dependency security fixes).",
+  "important": "Put ROMs under /Volume1/DockerAppData/rommdocker/library and scan them from the web UI. Metadata providers and RetroAchievements need your own API keys, entered in Settings or config.yml; without keys RomM works offline from file names. Data stays in DockerAppData/rommdocker/ and survives updates. Needs DockerEngine; plain HTTP on the LAN, put a TLS reverse proxy in front before exposing it. Back up the folder before uninstalling with data removal.",
   "healthcheck": [
     "CMD-SHELL",
     "curl -fsS http://127.0.0.1:8080/ >/dev/null || exit 1"
   ],
-  "entrypoint_file": "specs/romm-entrypoint.sh",
+  "entrypoint_file": "src/entrypoint.sh",
   "platform": "x86_64",
   "user": "1000:1000",
   "publisher": "Moechz",
   "compose_project": "rommdocker",
   "github_repo": "romm",
-  "upstream_version": "4.8.1",
+  "upstream_version": "5.4.1",
   "release_tag_prefix": "v",
-  "version": "4.8.1-1",
-  "help": "https://github.com/Moechz/romm/issues",
+  "version": "5.4.1-1",
+  "help": "https://github.com/Moechz/romm/blob/main/PRIVACY.md",
   "official": "https://github.com/rommapp/romm",
-  "license": "AGPL-3.0",
+  "license": "AGPL-3.0-only",
   "docker_socket": false,
   "group_add": [],
   "platforms": [
@@ -112,12 +74,14 @@
   ],
   "translations": {
     "zh-cn": {
-      "descript": "习惯打卡与连续天数统计，界面简洁。",
-      "important": "首次使用请打开网页完成初始化。数据保存在 DockerAppData/beaverhabitsdocker，重启和升级不会丢失。容器以 uid 1000 运行，挂载目录需对该用户可读。需要 DockerEngine；Docker Hub 不可达时先配置镜像加速。卸载并删除数据前请备份。局域网内为 HTTP。"
+      "descript": "RomM 是自托管的 ROM 管理与模拟器前端：扫描游戏库后可从 IGDB、ScreenScraper、MobyGames、SteamGridDB、RetroAchievements 等元数据源匹配封面与资料（需自备 API 密钥），在浏览器里用 EmulatorJS 直接运行游戏，并可在多设备间同步存档与即时存档。本包使用官方多架构 Docker Hub 镜像（amd64 与 arm64），自带 MariaDB 数据库，两个容器均以非 root 用户运行。",
+      "release_note": "按上轮审核意见整改（C10 C3 C4 C5 C6 C7 C8 C9 T1 S11）：补充完整隐私政策（保留期、用户权利、安全措施、第三方共享、删除渠道）、声明与完整 README；如实列出所有第三方端点及发送的数据与地区（IGDB、MobyGames、ScreenScraper、SteamGridDB、RetroAchievements、Hasheous、GitHub 更新检查、Docker Hub、EmulatorJS CDN、UPC 查询、可选 SMTP/OIDC）；重写 23 语言描述，zh-cn/zh-hk 不再描述其他应用；清除残留的其他应用 probe 元数据；强化 entrypoint（等待数据库凭据、密钥 0600）；上游由 4.8.1 升级到 5.4.1（证书与依赖安全修正）。",
+      "important": "把 ROM 放到 DockerAppData/rommdocker/library，然后在网页里扫描。元数据源与 RetroAchievements 需要你自备 API 密钥（在设置或 config.yml 中填写）；未配置密钥时仅按文件名整理，不联网。数据保存在 DockerAppData/rommdocker/，升级不丢失。需要 DockerEngine；局域网内为 HTTP，暴露到公网前请加 TLS 反向代理。卸载并删除数据前请备份。"
     },
     "zh-hk": {
-      "descript": "习惯打卡与连续天数统计，界面简洁。",
-      "important": "首次使用請開啟網頁完成初始化。資料保存在 DockerAppData/beaverhabitsdocker，重新啟動和升級不會遺失。容器以 uid 1000 運行，掛載目錄需對該使用者可讀。需要 DockerEngine；Docker Hub 不可達時先設定鏡像加速。解除安裝並刪除資料前請備份。區域網路內為 HTTP。"
+      "descript": "RomM 是自託管的 ROM 管理與模擬器前端：掃描遊戲庫後可從 IGDB、ScreenScraper、MobyGames、SteamGridDB、RetroAchievements 等中繼資料來源比對封面與資料（需自備 API 金鑰），在瀏覽器內用 EmulatorJS 直接執行遊戲，並可在多裝置間同步存檔與即時存檔。本包使用官方多架構 Docker Hub 映像（amd64 與 arm64），內建 MariaDB 資料庫，兩個容器均以非 root 使用者執行。",
+      "release_note": "按上輪審核意見整改（C10 C3 C4 C5 C6 C7 C8 C9 T1 S11）：補充完整隱私政策（保留期、使用者權利、安全措施、第三方分享、刪除管道）、聲明與完整 README；如實列出所有第三方端點及傳送的資料與地區（IGDB、MobyGames、ScreenScraper、SteamGridDB、RetroAchievements、Hasheous、GitHub 更新檢查、Docker Hub、EmulatorJS CDN、UPC 查詢、可選 SMTP/OIDC）；重寫 23 語言描述，zh-cn/zh-hk 不再描述其他應用；清除殘留的其他應用 probe 中繼資料；強化 entrypoint（等待資料庫憑證、密鑰 0600）；上游由 4.8.1 升級到 5.4.1（憑證與相依套件安全修正）。",
+      "important": "把 ROM 放到 DockerAppData/rommdocker/library，然後在網頁內掃描。中繼資料來源與 RetroAchievements 需要你自備 API 金鑰（在設定或 config.yml 中填寫）；未設定金鑰時僅依檔名整理，不連網。資料保存在 DockerAppData/rommdocker/，升級不遺失。需要 DockerEngine；區域網路內為 HTTP，對外開放前請加 TLS 反向代理。解除安裝並刪除資料前請備份。"
     }
   },
   "host_port": 8099

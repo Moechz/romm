@@ -1,0 +1,131 @@
+# ===========================================================================
+# RomM for TerraMaster TOS 7 (multi-container Docker application)
+# ===========================================================================
+# App image  : rommapp/romm:5.4.1 (Docker Hub)
+# Database   : mariadb:11.8.6 (internal only)
+#
+# RomM bundles its own Valkey (Redis) inside the app container. Only the app
+# publishes a host port. The database password and the RomM auth secret are
+# generated on first start and stored in the shared secret volume, so no
+# credential is hard-coded in this file. Every container runs as uid 1000.
+#
+# NOTE for maintainers: never place a comment line directly in front of a
+# "- value" sequence item (ports, volumes, ...): the official installer
+# parses the compose file line by line and a comment inside a sequence makes
+# it skip the ownership sync of the mounted directories.
+
+services:
+  rommdocker:
+    image: rommapp/romm:5.4.1
+    container_name: rommdocker
+    restart: unless-stopped
+    user: "1000:1000"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        #!/bin/sh
+        # RomM wrapper entrypoint.
+        #
+        # The upstream image is built to run as root and expects its secrets in the
+        # environment. This package runs it as uid/gid 1000, so the wrapper
+        #   1. waits (up to 60 s) for the database password the MariaDB container
+        #      generates into the shared /run/creds volume, and exports DB_PASSWD;
+        #   2. creates/persists the RomM auth secret in the config volume, so sessions
+        #      and encrypted values survive restarts;
+        #   3. keeps both secrets at mode 0600 (umask 077 + explicit chmod);
+        #   4. hands over to the upstream entrypoint unchanged.
+        set -u
+        set -e
+        umask 077
+
+        F=/run/creds/db_password
+        i=0
+        while [ ! -s "$$F" ] && [ "$$i" -lt 60 ]; do
+          i=$$((i + 1))
+          sleep 1
+        done
+        if [ -s "$$F" ]; then
+          DB_PASSWD="$$(cat "$$F")"
+          export DB_PASSWD
+        else
+          echo "rommdocker: $$F was not created by the database container within 60s" >&2
+          exit 1
+        fi
+
+        A=/romm/config/auth_secret
+        if [ ! -s "$$A" ]; then
+          head -c 32 /dev/urandom | base64 | tr -d '\n' > "$$A"
+        fi
+        chmod 600 "$$A" 2>/dev/null || true
+        ROMM_AUTH_SECRET_KEY="$$(cat "$$A")"
+        export ROMM_AUTH_SECRET_KEY
+
+        exec /docker-entrypoint.sh /init
+    depends_on:
+      rommdocker-db:
+        condition: service_healthy
+    ports:
+      - "8099:8080"
+    environment:
+      TZ: "Asia/Shanghai"
+      DB_HOST: "rommdocker-db"
+      DB_USER: "romm"
+      DB_NAME: "romm"
+      # Off by default: ROM hashes and file names must not leave the NAS unless
+      # the administrator opts in. Declared explicitly so the runtime matches
+      # PRIVACY.md and NOTICE.md.
+      HASHEOUS_API_ENABLED: "false"
+    volumes:
+      - /Volume1/DockerAppData/rommdocker/library:/romm/library
+      - /Volume1/DockerAppData/rommdocker/resources:/romm/resources
+      - /Volume1/DockerAppData/rommdocker/assets:/romm/assets
+      - /Volume1/DockerAppData/rommdocker/config:/romm/config
+      - /Volume1/DockerAppData/rommdocker/redis:/redis-data
+      - /Volume1/DockerAppData/rommdocker/creds:/run/creds
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 300s
+
+  rommdocker-db:
+    image: mariadb:11.8.6
+    container_name: rommdocker-db
+    restart: unless-stopped
+    user: "1000:1000"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -u
+        set -e
+        umask 077
+        F=/run/creds/db_password
+        mkdir -p /run/creds
+        if [ ! -s "$$F" ]; then head -c 24 /dev/urandom | base64 | tr -d '\n' > "$$F"; fi
+        chmod 600 "$$F"
+        exec /usr/local/bin/docker-entrypoint.sh mariadbd
+    environment:
+      TZ: "Asia/Shanghai"
+      MARIADB_DATABASE: "romm"
+      MARIADB_USER: "romm"
+      MARIADB_PASSWORD_FILE: "/run/creds/db_password"
+      MARIADB_ROOT_PASSWORD_FILE: "/run/creds/db_password"
+    volumes:
+      - /Volume1/DockerAppData/rommdocker/db:/var/lib/mysql
+      - /Volume1/DockerAppData/rommdocker/creds:/run/creds
+    healthcheck:
+      # MYSQL_PWD keeps the password out of the process list; --silent makes the
+      # probe succeed only once the romm user can actually log in.
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$(cat /run/creds/db_password)\" mariadb-admin ping -h127.0.0.1 -uromm --silent"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+# TOS App Center web metadata (must be the last block of the file):
+# web.port is the published host port above, protocol is http.
+x-app-meta:
+  web:
+    port: 8099
+    protocol: http
